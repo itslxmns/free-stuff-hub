@@ -23,6 +23,7 @@ export interface Settings {
   checkIntervalHours: number;
   notify: boolean;
   closeToTray: boolean;
+  launchAtStartup: boolean;
   epic: boolean;
   gog: boolean;
   prime: boolean;

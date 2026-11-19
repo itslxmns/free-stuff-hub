@@ -62,16 +62,16 @@ pub async fn fetch_all(epic: bool, gog: bool, prime: bool) -> FetchResult {
     let mut games = Vec::new();
     let mut errors = Vec::new();
 
-    if epic {
-        match fetch_epic(&http).await {
-            Ok(mut g) => games.append(&mut g),
-            Err(e) => errors.push(format!("Epic: {e}")),
-        }
-    }
-    if gog {
-        match fetch_gog(&http).await {
-            Ok(mut g) => games.append(&mut g),
-            Err(e) => errors.push(format!("GOG: {e}")),
+    // Fast sources run in parallel (~1 s total). The slow GOG homepage scan is separate: fetch_gog_homepage().
+    let (epic_res, gog_res) = tokio::join!(
+        async { if epic { Some(fetch_epic(&http).await) } else { None } },
+        async { if gog { Some(fetch_gog(&http).await) } else { None } },
+    );
+    for (name, res) in [("Epic", epic_res), ("GOG", gog_res)] {
+        match res {
+            Some(Ok(mut g)) => games.append(&mut g),
+            Some(Err(e)) => errors.push(format!("{name}: {e}")),
+            None => {}
         }
     }
     if prime {
@@ -163,19 +163,20 @@ pub async fn fetch_gog(http: &reqwest::Client) -> Result<Vec<FreeGame>, String> 
     let v: Value = http.get(url).send().await.map_err(|e| e.to_string())?
         .error_for_status().map_err(|e| e.to_string())?
         .json().await.map_err(|e| e.to_string())?;
-    let mut out = parse_gog_catalog(&v);
+    Ok(parse_gog_catalog(&v))
+}
 
-    // 2) Homepage giveaway banner (best effort; markup may change).
-    if let Ok(resp) = http.get("https://www.gog.com/en/").send().await {
-        if let Ok(html) = resp.text().await {
-            for g in parse_gog_homepage(&html) {
-                if !out.iter().any(|o| o.url == g.url) {
-                    out.push(g);
-                }
-            }
-        }
-    }
-    Ok(out)
+/// 2) Homepage giveaway banner (best effort; markup may change). Slow: the page is ~1.7 MB.
+pub async fn fetch_gog_homepage() -> Result<Vec<FreeGame>, String> {
+    let html = client()
+        .get("https://www.gog.com/en/")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .text()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(parse_gog_homepage(&html))
 }
 
 fn parse_gog_catalog(v: &Value) -> Vec<FreeGame> {

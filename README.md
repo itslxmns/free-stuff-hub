@@ -32,6 +32,12 @@ your browser.
   "Get" yourself. **Mark claimed** tracks what you've already grabbed.
 - State is saved to `%APPDATA%\com.freestuffhub.app\state.json`.
 
+## Install
+
+Run `Free Stuff Hub_x.y.z_x64-setup.exe` (no admin rights needed). It adds Start menu and
+desktop shortcuts. In **Settings** you can turn on **Start with Windows**, which starts the app
+hidden in the tray when you log in.
+
 ## Development
 
 Requirements: Node 20+, Rust (stable, MSVC), WebView2 (included with Windows 11).

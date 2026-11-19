@@ -9,6 +9,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Notify;
 
@@ -63,20 +64,21 @@ async fn run_check(app: &AppHandle, reason: &str) -> Result<Snapshot, String> {
         *busy = true;
     }
     let settings = st.store.lock().unwrap().data.settings.clone();
-    let result = free_games::fetch_all(settings.epic, settings.gog, settings.prime).await;
+    let mut result = free_games::fetch_all(settings.epic, settings.gog, settings.prime).await;
 
     let new_items = {
         let mut store = st.store.lock().unwrap();
+        // Keep last known GOG homepage giveaways until phase 2 refreshes them (avoids flicker).
+        if settings.gog {
+            let kept: Vec<_> = store.data.games.iter().filter(|g| g.id.starts_with(GOG_HOME_PREFIX)).cloned().collect();
+            result.games.extend(kept);
+        }
         for e in &result.errors {
             store.log("free-games", "error", e.clone());
         }
         let total = result.games.len();
         let new_items = store.apply_games(result.games);
-        store.log(
-            "free-games",
-            "info",
-            format!("Check ({reason}): {total} offers, {} new", new_items.len()),
-        );
+        store.log("free-games", "info", format!("Check ({reason}): {total} offers, {} new", new_items.len()));
         for g in &new_items {
             store.log("free-games", "reward", format!("New free game: {} ({:?})", g.title, g.store));
         }
@@ -84,26 +86,57 @@ async fn run_check(app: &AppHandle, reason: &str) -> Result<Snapshot, String> {
         new_items
     };
     *st.checking.lock().unwrap() = false;
+    if settings.notify {
+        notify_new(app, &new_items);
+    }
 
-    if settings.notify && !new_items.is_empty() {
-        let body = if new_items.len() == 1 {
-            new_items[0].title.clone()
-        } else {
-            format!(
-                "{} and {} more",
-                new_items[0].title,
-                new_items.len() - 1
-            )
-        };
-        let _ = app
-            .notification()
-            .builder()
-            .title("Free games available")
-            .body(body)
-            .show();
+    // Phase 2 (slow, ~10 s): GOG homepage giveaway banner, merged in when it arrives.
+    if settings.gog {
+        let app2 = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let res = free_games::fetch_gog_homepage().await;
+            let st = app2.state::<AppState>();
+            let new_items = {
+                let mut store = st.store.lock().unwrap();
+                match res {
+                    Ok(found) => {
+                        let mut games: Vec<_> = store.data.games.iter().filter(|g| !g.id.starts_with(GOG_HOME_PREFIX)).cloned().collect();
+                        games.extend(found.into_iter().filter(|f| !store.data.games.iter().any(|g| g.url == f.url && !g.id.starts_with(GOG_HOME_PREFIX))));
+                        let new_items = store.merge_games(games);
+                        for g in &new_items {
+                            store.log("free-games", "reward", format!("New free game: {} (GOG giveaway)", g.title));
+                        }
+                        store.save();
+                        new_items
+                    }
+                    Err(e) => {
+                        store.log("free-games", "error", format!("GOG homepage: {e}"));
+                        vec![]
+                    }
+                }
+            };
+            if settings.notify {
+                notify_new(&app2, &new_items);
+            }
+            emit_snapshot(&app2);
+        });
     }
     emit_snapshot(app);
     Ok(st.store.lock().unwrap().snapshot())
+}
+
+const GOG_HOME_PREFIX: &str = "gog-giveaway:";
+
+fn notify_new(app: &AppHandle, items: &[free_games::FreeGame]) {
+    if items.is_empty() {
+        return;
+    }
+    let body = if items.len() == 1 {
+        items[0].title.clone()
+    } else {
+        format!("{} and {} more", items[0].title, items.len() - 1)
+    };
+    let _ = app.notification().builder().title("Free games available").body(body).show();
 }
 
 /// Background poller: checks every N hours (+/- 20 min random jitter).
@@ -162,7 +195,11 @@ fn set_claimed(app: AppHandle, state: tauri::State<AppState>, id: String, claime
 }
 
 #[tauri::command]
-fn update_settings(state: tauri::State<AppState>, settings: Settings) -> Snapshot {
+fn update_settings(app: AppHandle, state: tauri::State<AppState>, settings: Settings) -> Snapshot {
+    let autolaunch = app.autolaunch();
+    if autolaunch.is_enabled().unwrap_or(false) != settings.launch_at_startup {
+        let _ = if settings.launch_at_startup { autolaunch.enable() } else { autolaunch.disable() };
+    }
     let mut store = state.store.lock().unwrap();
     let interval_changed = store.data.settings.check_interval_hours != settings.check_interval_hours;
     let mut s = settings;
@@ -178,7 +215,7 @@ fn update_settings(state: tauri::State<AppState>, settings: Settings) -> Snapsho
 /// Opens the store's official page in an in-app window. The user signs in there
 /// directly; the window has no IPC access and this app never reads its cookies.
 #[tauri::command]
-fn open_store_window(app: AppHandle, url: String, title: Option<String>) -> Result<(), String> {
+async fn open_store_window(app: AppHandle, url: String, title: Option<String>) -> Result<(), String> {
     let parsed: tauri::Url = url.parse().map_err(|_| "Invalid URL".to_string())?;
     if !host_allowed(&parsed) {
         return Err("This site is not on the store allow-list".into());
@@ -225,6 +262,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let wake = Arc::new(Notify::new());
@@ -261,6 +299,20 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Started by Windows at login: stay in the tray.
+            if std::env::args().any(|a| a == "--minimized") {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
+            // Keep the saved setting in sync with the real registry entry.
+            {
+                let enabled = app.autolaunch().is_enabled().unwrap_or(false);
+                let st = app.state::<AppState>();
+                let mut store = st.store.lock().unwrap();
+                store.data.settings.launch_at_startup = enabled;
+            }
 
             spawn_poller(app.handle().clone(), wake);
             Ok(())

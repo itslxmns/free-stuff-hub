@@ -6,7 +6,7 @@ const day = 86_400_000;
 const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 let state: Snapshot = {
-  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, epic: true, gog: true, prime: true, acknowledgedRisk: false },
+  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, acknowledgedRisk: false },
   lastCheck: iso(-12 * 60_000),
   nextCheck: iso(6 * 3_600_000),
   claimedTotal: 0,

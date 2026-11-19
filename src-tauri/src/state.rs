@@ -12,6 +12,8 @@ pub struct Settings {
     pub check_interval_hours: u32,
     pub notify: bool,
     pub close_to_tray: bool,
+    /// Start with Windows (hidden in the tray).
+    pub launch_at_startup: bool,
     pub epic: bool,
     pub gog: bool,
     pub prime: bool,
@@ -25,6 +27,7 @@ impl Default for Settings {
             check_interval_hours: 6,
             notify: true,
             close_to_tray: true,
+            launch_at_startup: false,
             epic: true,
             gog: true,
             prime: true,
@@ -128,6 +131,21 @@ impl Store {
         }
         self.data.games = games;
         self.data.last_check = Some(Utc::now());
+        new_active
+    }
+
+    /// Like apply_games, but keeps the current "new" markers and last-check time (phase-2 merges).
+    pub fn merge_games(&mut self, games: Vec<FreeGame>) -> Vec<FreeGame> {
+        let mut new_active = Vec::new();
+        for g in &games {
+            if self.data.seen.insert(g.id.clone()) {
+                self.fresh.insert(g.id.clone());
+                if g.status != OfferStatus::Upcoming && !self.data.claimed.contains(&g.id) {
+                    new_active.push(g.clone());
+                }
+            }
+        }
+        self.data.games = games;
         new_active
     }
 

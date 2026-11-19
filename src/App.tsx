@@ -163,6 +163,7 @@ function SettingsPage({ s, onSave }: { s: Settings; onSave: (s: Settings) => voi
         <h2>App</h2>
         <Toggle label="Desktop notifications for new free games" v={s.notify} on={(notify) => set({ notify })} />
         <Toggle label="Close button hides to tray" v={s.closeToTray} on={(closeToTray) => set({ closeToTray })} />
+        <Toggle label="Start with Windows (hidden in tray)" v={s.launchAtStartup} on={(launchAtStartup) => set({ launchAtStartup })} />
       </section>
     </div>
   );
