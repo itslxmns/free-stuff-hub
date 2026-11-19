@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { mockApi } from "./mock";
 
-export type Store = "epic" | "gog" | "prime";
+export type Store = "epic" | "gog" | "prime" | "steam";
 export type OfferStatus = "active" | "upcoming" | "reminder";
 
 export interface GameView {
@@ -27,6 +27,9 @@ export interface Settings {
   epic: boolean;
   gog: boolean;
   prime: boolean;
+  steam: boolean;
+  steamAutoAdd: boolean;
+  steamDailyCap: number;
   acknowledgedRisk: boolean;
 }
 
@@ -53,6 +56,7 @@ const tauriApi = {
   updateSettings: (settings: Settings) => invoke<Snapshot>("update_settings", { settings }),
   openStoreWindow: (url: string, title?: string) => invoke<void>("open_store_window", { url, title }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),
+  steamAddToAccount: (id: string) => invoke<void>("steam_add_to_account", { id }),
   onSnapshot: (cb: (s: Snapshot) => void): Promise<UnlistenFn> =>
     listen<Snapshot>("snapshot", (e) => cb(e.payload)),
 };

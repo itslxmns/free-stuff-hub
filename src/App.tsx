@@ -158,8 +158,25 @@ function SettingsPage({ s, onSave }: { s: Settings; onSave: (s: Settings) => voi
           </select>
         </label>
         <Toggle label="Epic Games Store" v={s.epic} on={(epic) => set({ epic })} />
+        <Toggle label="Steam 100% off games" v={s.steam} on={(steam) => set({ steam })} />
         <Toggle label="GOG giveaways" v={s.gog} on={(gog) => set({ gog })} />
         <Toggle label="Prime Gaming monthly reminder" v={s.prime} on={(prime) => set({ prime })} />
+        <h2>Steam auto-add</h2>
+        <p className="muted small">
+          Adds new 100%-off Steam games to your account by itself, in a hidden Steam window. Sign in once with
+          "Add to account" first. It does one game at a time with random gaps, and stops at the daily limit.
+        </p>
+        <Toggle label="Auto-add free Steam games" v={s.steamAutoAdd} on={(steamAutoAdd) => set({ steamAutoAdd })} />
+        <label className="row">
+          <span>Daily limit</span>
+          <select value={s.steamDailyCap} onChange={(e) => set({ steamDailyCap: Number(e.target.value) })}>
+            {[3, 5, 10, 20].map((n) => (
+              <option key={n} value={n}>
+                {n} games / 24 h
+              </option>
+            ))}
+          </select>
+        </label>
         <h2>App</h2>
         <Toggle label="Desktop notifications for new free games" v={s.notify} on={(notify) => set({ notify })} />
         <Toggle label="Close button hides to tray" v={s.closeToTray} on={(closeToTray) => set({ closeToTray })} />

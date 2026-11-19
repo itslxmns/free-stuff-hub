@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Icon } from "../lib/icons";
 import { api, relTime, timeLeft, type GameView, type Snapshot, type Store } from "../lib/api";
 
-const STORE_LABEL: Record<Store, string> = { epic: "Epic Games", gog: "GOG", prime: "Prime Gaming" };
+const STORE_LABEL: Record<Store, string> = { epic: "Epic Games", gog: "GOG", prime: "Prime Gaming", steam: "Steam" };
 
 interface Props {
   snap: Snapshot;
@@ -38,7 +38,7 @@ export function FreeGames({ snap, onSnap, onError }: Props) {
         <div>
           <h1>Free games</h1>
           <p className="muted">
-            Epic, GOG and Prime Gaming. Last check {relTime(snap.lastCheck)} · next {relTime(snap.nextCheck)}
+            Epic, Steam, GOG and Prime Gaming. Last check {relTime(snap.lastCheck)} · next {relTime(snap.nextCheck)}
           </p>
         </div>
         <button className="btn primary" onClick={checkNow} disabled={busy}>
@@ -53,12 +53,13 @@ export function FreeGames({ snap, onSnap, onError }: Props) {
       </div>
 
       <div className="notice safe">
-        <strong>Low risk.</strong> This module only reads public store listings. Claiming happens on the store's
-        official page, where you sign in yourself. Free Stuff Hub never sees your password or tokens.
+        <strong>Low risk.</strong> This module reads public store listings. Claiming happens on the store's
+        official page, where you sign in yourself. Free Stuff Hub never sees your password or tokens. Steam's{" "}
+        <b>Add to account</b> clicks Steam's own button in your signed-in Steam page, one game at a time.
       </div>
 
       <div className="toolbar">
-        {(["all", "epic", "gog", "prime"] as const).map((f) => (
+        {(["all", "epic", "steam", "gog", "prime"] as const).map((f) => (
           <button key={f} className={`chip ${filter === f ? "on" : ""}`} onClick={() => setFilter(f)}>
             {f === "all" ? "All" : STORE_LABEL[f]}
           </button>
@@ -116,7 +117,16 @@ function GameCard({ g, onSnap, onError }: { g: GameView; onSnap: (s: Snapshot) =
           {g.note && <span className="note">{g.note}</span>}
         </div>
         <div className="card-actions">
-          {g.status !== "upcoming" && (
+          {g.store === "steam" && !g.claimed && (
+            <button
+              className="btn primary"
+              title="Opens the Steam page and clicks Steam's own 'Add to Account' button for you"
+              onClick={() => run(api.steamAddToAccount(g.id))}
+            >
+              Add to account
+            </button>
+          )}
+          {g.store !== "steam" && g.status !== "upcoming" && (
             <button className="btn primary" onClick={() => run(api.openStoreWindow(g.url, `Claim: ${g.title}`))}>
               Claim
             </button>

@@ -17,6 +17,11 @@ pub struct Settings {
     pub epic: bool,
     pub gog: bool,
     pub prime: bool,
+    pub steam: bool,
+    /// Add newly found 100%-off Steam games automatically (off by default).
+    pub steam_auto_add: bool,
+    /// Max automatic Steam adds per 24 h.
+    pub steam_daily_cap: u32,
     /// User has read the ToS / account-risk notice.
     pub acknowledged_risk: bool,
 }
@@ -31,6 +36,9 @@ impl Default for Settings {
             epic: true,
             gog: true,
             prime: true,
+            steam: true,
+            steam_auto_add: false,
+            steam_daily_cap: 10,
             acknowledged_risk: false,
         }
     }
@@ -53,6 +61,8 @@ pub struct Persisted {
     pub claimed: BTreeSet<String>,
     pub games: Vec<FreeGame>,
     pub last_check: Option<DateTime<Utc>>,
+    /// Times of successful automatic/manual Steam adds (for the daily cap).
+    pub steam_adds: Vec<DateTime<Utc>>,
     pub next_check: Option<DateTime<Utc>>,
     pub log: Vec<LogEntry>,
 }

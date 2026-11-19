@@ -139,3 +139,6 @@ select { background: var(--panel-2); color: var(--text); border: 1px solid var(-
 .meta-line { display: flex; align-items: center; gap: 6px; }
 .btn { display: inline-flex; align-items: center; gap: 6px; }
 .demo-bar { background: rgba(245, 158, 11, .12); border-bottom: 1px solid rgba(245, 158, 11, .35); color: var(--amber); padding: 6px 32px; font-size: 12px; }
+
+.cover.store-steam { background: linear-gradient(135deg, #1b2838, #2a475e); }
+.small { font-size: 12px; margin: 0 0 6px; line-height: 1.45; }

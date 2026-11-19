@@ -6,7 +6,7 @@ const day = 86_400_000;
 const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 let state: Snapshot = {
-  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, acknowledgedRisk: false },
+  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, steam: true, steamAutoAdd: false, steamDailyCap: 10, acknowledgedRisk: false },
   lastCheck: iso(-12 * 60_000),
   nextCheck: iso(6 * 3_600_000),
   claimedTotal: 0,
@@ -16,6 +16,7 @@ let state: Snapshot = {
   ],
   games: [
     { id: "epic:demo1", store: "epic", title: "Demo Game One", url: "https://store.epicgames.com/en-US/free-games", image: null, startsAt: iso(-day), endsAt: iso(6 * day), status: "active", note: null, claimed: false, isNew: true },
+    { id: "steam:App_1", store: "steam", title: "Demo Steam Giveaway", url: "https://store.steampowered.com/app/1/", image: null, startsAt: null, endsAt: null, status: "active", note: "100% off on Steam. Free to keep if you add it before the promo ends.", claimed: false, isNew: true },
     { id: "prime:demo", store: "prime", title: "Prime Gaming games for this month", url: "https://gaming.amazon.com/home", image: null, startsAt: null, endsAt: null, status: "reminder", note: "Needs an Amazon Prime membership. Open the claims page, sign in, and claim this month's games.", claimed: false, isNew: false },
     { id: "gog:demo", store: "gog", title: "Demo GOG Giveaway", url: "https://www.gog.com/en/", image: null, startsAt: null, endsAt: null, status: "active", note: "100% off on GOG. Claim it while the deal lasts.", claimed: false, isNew: false },
     { id: "epic:demo2", store: "epic", title: "Demo Game Two", url: "https://store.epicgames.com/en-US/free-games", image: null, startsAt: iso(7 * day), endsAt: iso(14 * day), status: "upcoming", note: null, claimed: false, isNew: false },
@@ -32,5 +33,6 @@ export const mockApi = {
   updateSettings: async (settings: Settings) => (state = { ...state, settings }),
   openStoreWindow: async (url: string) => void window.open(url, "_blank"),
   openExternal: async (url: string) => void window.open(url, "_blank"),
+  steamAddToAccount: async () => {},
   onSnapshot: async () => () => {},
 };

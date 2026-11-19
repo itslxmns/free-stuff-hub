@@ -20,9 +20,10 @@ echo.
 
 rem ---- 2. A built installer is already here: run it -----------------------
 if /i not "%~1"=="--rebuild" (
-  for %%F in ("%BUNDLE%\*-setup.exe") do (
-    echo Installing from %%~nxF ...
-    "%%F" /S
+  call :newest
+  if defined NEWEST (
+    echo Installing from !NEWEST! ...
+    "%BUNDLE%\!NEWEST!" /S
     goto :launch
   )
 )
@@ -47,8 +48,9 @@ echo [2/3] Building the app ^(first build takes 5-10 minutes^)...
 call npm run tauri build || goto :fail
 
 echo [3/3] Installing...
-for %%F in ("%BUNDLE%\*-setup.exe") do (
-  "%%F" /S
+call :newest
+if defined NEWEST (
+  "%BUNDLE%\!NEWEST!" /S
   goto :launch
 )
 echo [x] Build finished but no installer was found in %BUNDLE%.
@@ -69,3 +71,11 @@ echo.
 echo Setup failed. See the messages above.
 pause
 exit /b 1
+
+rem Sets NEWEST to the most recently built installer file name (if any).
+:newest
+set "NEWEST="
+for /f "delims=" %%F in ('dir /b /o-d "%BUNDLE%\*-setup.exe" 2^>nul') do (
+  if not defined NEWEST set "NEWEST=%%F"
+)
+exit /b 0

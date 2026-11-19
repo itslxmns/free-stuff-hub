@@ -1,5 +1,6 @@
 mod free_games;
 mod state;
+mod steam;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use state::{Settings, Snapshot, Store};
@@ -13,11 +14,15 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Notify;
 
-struct AppState {
-    store: Mutex<Store>,
+pub(crate) struct AppState {
+    pub(crate) store: Mutex<Store>,
     /// Wakes the background poller (check now / settings changed).
     wake: Arc<Notify>,
     checking: Mutex<bool>,
+    /// Pending Steam add result (auto-add waits on it).
+    pub(crate) steam_waiter: Mutex<Option<tokio::sync::oneshot::Sender<String>>>,
+    /// One Steam auto-add queue at a time.
+    pub(crate) steam_busy: Mutex<bool>,
 }
 
 /// Hosts the in-app sign-in/claim windows may open. Anything else goes to the system browser.
@@ -31,6 +36,7 @@ const STORE_HOSTS: &[&str] = &[
     "amazon.es",
     "amazon.it",
     "amazon.ca",
+    "steampowered.com",
 ];
 
 fn host_allowed(url: &tauri::Url) -> bool {
@@ -41,7 +47,7 @@ fn host_allowed(url: &tauri::Url) -> bool {
 }
 
 /// Pseudo-random jitter in seconds within [-max, +max], so checks don't happen on a fixed clock.
-fn jitter_secs(max: i64) -> i64 {
+pub(crate) fn jitter_secs(max: i64) -> i64 {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.subsec_nanos() as i64 ^ (d.as_secs() as i64).rotate_left(13))
@@ -49,7 +55,7 @@ fn jitter_secs(max: i64) -> i64 {
     (nanos.rem_euclid(2 * max + 1)) - max
 }
 
-fn emit_snapshot(app: &AppHandle) {
+pub(crate) fn emit_snapshot(app: &AppHandle) {
     let snap = app.state::<AppState>().store.lock().unwrap().snapshot();
     let _ = app.emit("snapshot", snap);
 }
@@ -64,7 +70,7 @@ async fn run_check(app: &AppHandle, reason: &str) -> Result<Snapshot, String> {
         *busy = true;
     }
     let settings = st.store.lock().unwrap().data.settings.clone();
-    let mut result = free_games::fetch_all(settings.epic, settings.gog, settings.prime).await;
+    let mut result = free_games::fetch_all(settings.epic, settings.gog, settings.prime, settings.steam).await;
 
     let new_items = {
         let mut store = st.store.lock().unwrap();
@@ -88,6 +94,10 @@ async fn run_check(app: &AppHandle, reason: &str) -> Result<Snapshot, String> {
     *st.checking.lock().unwrap() = false;
     if settings.notify {
         notify_new(app, &new_items);
+    }
+    if settings.steam && settings.steam_auto_add {
+        let steam_new: Vec<_> = new_items.iter().filter(|g| g.store == free_games::Store::Steam).cloned().collect();
+        steam::spawn_auto_add(app.clone(), steam_new);
     }
 
     // Phase 2 (slow, ~10 s): GOG homepage giveaway banner, merged in when it arrives.
@@ -223,6 +233,7 @@ async fn open_store_window(app: AppHandle, url: String, title: Option<String>) -
     let host = parsed.host_str().unwrap_or("store");
     let key = STORE_HOSTS.iter().find(|a| host == **a || host.ends_with(&format!(".{a}"))).unwrap_or(&"store");
     let label = format!("store-{}", key.replace('.', "-"));
+    let window_title = title.clone().unwrap_or_else(|| format!("Free Stuff Hub - {key}"));
     if let Some(w) = app.get_webview_window(&label) {
         w.navigate(parsed).map_err(|e| e.to_string())?;
         let _ = w.unminimize();
@@ -230,8 +241,12 @@ async fn open_store_window(app: AppHandle, url: String, title: Option<String>) -
         let _ = w.set_focus();
         return Ok(());
     }
+    if steam::is_steam_host(&parsed) {
+        steam::build_window(&app, &label, parsed, true, window_title)?;
+        return Ok(());
+    }
     WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(parsed))
-        .title(title.unwrap_or_else(|| format!("Free Stuff Hub - {key}")))
+        .title(window_title)
         .inner_size(1180.0, 820.0)
         .build()
         .map_err(|e| e.to_string())?;
@@ -270,6 +285,8 @@ pub fn run() {
                 store: Mutex::new(Store::load(dir)),
                 wake: wake.clone(),
                 checking: Mutex::new(false),
+                steam_waiter: Mutex::new(None),
+                steam_busy: Mutex::new(false),
             });
 
             // Tray
@@ -334,7 +351,8 @@ pub fn run() {
             set_claimed,
             update_settings,
             open_store_window,
-            open_external
+            open_external,
+            steam::steam_add_to_account
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

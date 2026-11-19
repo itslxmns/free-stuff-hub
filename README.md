@@ -5,7 +5,7 @@ Built with **Tauri 2** (Rust backend) and **React + TypeScript**.
 
 | Module | Status | ToS risk |
 | --- | --- | --- |
-| **Free games**: Epic Games Store, GOG giveaways, Prime Gaming reminders | Working | Low |
+| **Free games**: Epic Games Store, Steam 100% off (with Add to account), GOG giveaways, Prime Gaming reminders | Working | Low |
 | Steam trading-card idling | Planned | Low |
 | Twitch & Kick drops | Planned | Medium |
 | Discord quests | Planned | **High** |
@@ -31,6 +31,19 @@ your browser.
 - **Claim** opens the official store page in an app window, where you sign in and click
   "Get" yourself. **Mark claimed** tracks what you've already grabbed.
 - State is saved to `%APPDATA%\com.freestuffhub.app\state.json`.
+
+## Steam: 100% off games
+
+- Detects Steam games that are temporarily **100% off** (free to keep), not regular free-to-play games.
+- **Add to account** opens the game's official Steam page in an app window and clicks Steam's own
+  "Add to Account" button for you after a short random delay. The first time, sign in on Steam's
+  login page (Steam Guard works as normal); the add finishes after you sign in.
+- **Auto-add** (Settings, off by default) adds new free Steam games by itself in a hidden window:
+  one at a time, with random gaps, up to a daily limit (default 10).
+- Safety: this is the same request Steam's button sends when you click it. Tools like
+  ArchiSteamFarm have done this for years without bans. Steam itself limits accounts to about 50
+  free licenses per hour, far above what this app does. The app never sees your Steam password,
+  cookies or Steam Guard codes.
 
 ## Install
 

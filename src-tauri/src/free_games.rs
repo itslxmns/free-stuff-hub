@@ -17,6 +17,7 @@ pub enum Store {
     Epic,
     Gog,
     Prime,
+    Steam,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -57,17 +58,18 @@ pub fn client() -> reqwest::Client {
         .expect("http client")
 }
 
-pub async fn fetch_all(epic: bool, gog: bool, prime: bool) -> FetchResult {
+pub async fn fetch_all(epic: bool, gog: bool, prime: bool, steam: bool) -> FetchResult {
     let http = client();
     let mut games = Vec::new();
     let mut errors = Vec::new();
 
     // Fast sources run in parallel (~1 s total). The slow GOG homepage scan is separate: fetch_gog_homepage().
-    let (epic_res, gog_res) = tokio::join!(
+    let (epic_res, gog_res, steam_res) = tokio::join!(
         async { if epic { Some(fetch_epic(&http).await) } else { None } },
         async { if gog { Some(fetch_gog(&http).await) } else { None } },
+        async { if steam { Some(fetch_steam(&http).await) } else { None } },
     );
-    for (name, res) in [("Epic", epic_res), ("GOG", gog_res)] {
+    for (name, res) in [("Epic", epic_res), ("GOG", gog_res), ("Steam", steam_res)] {
         match res {
             Some(Ok(mut g)) => games.append(&mut g),
             Some(Err(e)) => errors.push(format!("{name}: {e}")),
@@ -224,6 +226,57 @@ fn parse_gog_homepage(html: &str) -> Vec<FreeGame> {
     }).collect()
 }
 
+// ---------------------------------------------------------------- Steam
+
+/// Steam games that are 100% off for a limited time ("free to keep").
+/// Uses the public store search (price filter "free" + "special offers"), then keeps only
+/// rows with a real 100% discount so permanently free-to-play games are skipped.
+pub async fn fetch_steam(http: &reqwest::Client) -> Result<Vec<FreeGame>, String> {
+    let url = "https://store.steampowered.com/search/results/?query&start=0&count=100&maxprice=free&specials=1&infinite=1&cc=us&l=english";
+    let v: Value = http.get(url).send().await.map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?
+        .json().await.map_err(|e| e.to_string())?;
+    let html = v.get("results_html").and_then(Value::as_str).unwrap_or_default();
+    Ok(parse_steam_search(html))
+}
+
+fn parse_steam_search(html: &str) -> Vec<FreeGame> {
+    let attr = |row: &str, name: &str| -> Option<String> {
+        let re = Regex::new(&format!(r#"{name}="([^"]*)""#)).ok()?;
+        re.captures(row).map(|c| c[1].to_string())
+    };
+    let title_re = Regex::new(r#"<span class="title">([^<]*)</span>"#).unwrap();
+    let img_re = Regex::new(r#"<img src="([^"]+)""#).unwrap();
+    html.split("<a href=").skip(1).filter_map(|row| {
+        if attr(row, "data-discount").as_deref() != Some("100") {
+            return None;
+        }
+        let href = row.trim_start_matches('"').split('"').next()?.split('?').next()?.to_string();
+        if !href.starts_with("https://store.steampowered.com/") {
+            return None;
+        }
+        let key = attr(row, "data-ds-itemkey")
+            .or_else(|| attr(row, "data-ds-appid").map(|a| format!("App_{a}")))
+            .unwrap_or_else(|| href.clone());
+        let title = title_re.captures(row).map(|c| html_unescape(&c[1])).unwrap_or_else(|| "Steam game".into());
+        Some(FreeGame {
+            id: format!("steam:{key}"),
+            store: Store::Steam,
+            title,
+            url: href,
+            image: img_re.captures(row).map(|c| c[1].to_string()),
+            starts_at: None,
+            ends_at: None,
+            status: OfferStatus::Active,
+            note: Some("100% off on Steam. Free to keep if you add it before the promo ends.".into()),
+        })
+    }).collect()
+}
+
+fn html_unescape(s: &str) -> String {
+    s.replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
+}
+
 // ---------------------------------------------------------------- Prime Gaming
 
 /// Prime Gaming (now under Amazon Luna "claims") has no public feed: keep a monthly reminder.
@@ -269,6 +322,18 @@ mod tests {
         let g = parse_gog_homepage(html);
         assert_eq!(g.len(), 1);
         assert_eq!(g[0].title, "Some Cool Game");
+    }
+
+    #[test]
+    fn steam_keeps_only_100_percent_off() {
+        let html = r#"<!-- List Items --> <a href="https://store.steampowered.com/app/111/Free_Now/?snr=1" data-ds-appid="111" data-ds-itemkey="App_111" class="search_result_row"> <img src="http://cap.jpg" > <span class="title">Free Now &amp; Then</span> <div class="discount_block" data-price-final="0" data-discount="100"></div></a>
+        <a href="https://store.steampowered.com/app/222/F2P/?snr=1" data-ds-appid="222" class="search_result_row"> <span class="title">Free to play</span> <div class="discount_block no_discount" data-price-final="0" data-discount="0"></div></a>"#;
+        let g = parse_steam_search(html);
+        assert_eq!(g.len(), 1);
+        assert_eq!(g[0].id, "steam:App_111");
+        assert_eq!(g[0].title, "Free Now & Then");
+        assert_eq!(g[0].url, "https://store.steampowered.com/app/111/Free_Now/");
+        assert_eq!(g[0].image.as_deref(), Some("http://cap.jpg"));
     }
 
     #[test]
