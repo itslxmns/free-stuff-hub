@@ -34,7 +34,14 @@ your browser.
 
 ## Install
 
-Run `Free Stuff Hub_x.y.z_x64-setup.exe` (no admin rights needed). It adds Start menu and
+**Easiest:** download `Free Stuff Hub_x.y.z_x64-setup.exe` from
+[Releases](https://github.com/itslxmns/free-stuff-hub/releases/latest) and run it.
+
+**From source:** double-click `setup.cmd`. It starts the app if it's already installed. Otherwise
+it checks for Node.js and Rust, builds the app and installs it (`setup.cmd --rebuild` forces a
+fresh build).
+
+The installer needs no admin rights. It adds Start menu and
 desktop shortcuts. In **Settings** you can turn on **Start with Windows**, which starts the app
 hidden in the tray when you log in.
 
