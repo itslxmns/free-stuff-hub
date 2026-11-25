@@ -139,7 +139,9 @@ fn parse_epic(v: &Value, now: DateTime<Utc>) -> Vec<FreeGame> {
         let image = e.get("keyImages").and_then(Value::as_array).and_then(|imgs| {
             ["OfferImageWide", "DieselStoreFrontWide", "Thumbnail"].iter().find_map(|t| {
                 imgs.iter().find(|i| i.get("type").and_then(Value::as_str) == Some(t))
-                    .and_then(|i| i.get("url")).and_then(Value::as_str).map(String::from)
+                    .and_then(|i| i.get("url")).and_then(Value::as_str)
+                    // Card-sized art instead of the 2560px original (~10x smaller).
+                    .map(|u| if u.contains('?') { u.to_string() } else { format!("{u}?w=720&resize=1&quality=high") })
             })
         });
         out.push(FreeGame {
@@ -264,7 +266,10 @@ fn parse_steam_search(html: &str) -> Vec<FreeGame> {
             store: Store::Steam,
             title,
             url: href,
-            image: img_re.captures(row).map(|c| c[1].to_string()),
+            image: attr(row, "data-ds-appid")
+                .and_then(|a| a.split(',').next().map(String::from))
+                .map(|a| format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{a}/header.jpg"))
+                .or_else(|| img_re.captures(row).map(|c| c[1].to_string())),
             starts_at: None,
             ends_at: None,
             status: OfferStatus::Active,
@@ -312,7 +317,7 @@ mod tests {
         assert_eq!(g.len(), 2);
         assert_eq!(g[0].status, OfferStatus::Active);
         assert_eq!(g[0].url, "https://store.epicgames.com/en-US/p/free-now");
-        assert_eq!(g[0].image.as_deref(), Some("http://img"));
+        assert_eq!(g[0].image.as_deref(), Some("http://img?w=720&resize=1&quality=high"));
         assert_eq!(g[1].status, OfferStatus::Upcoming);
     }
 
@@ -333,7 +338,7 @@ mod tests {
         assert_eq!(g[0].id, "steam:App_111");
         assert_eq!(g[0].title, "Free Now & Then");
         assert_eq!(g[0].url, "https://store.steampowered.com/app/111/Free_Now/");
-        assert_eq!(g[0].image.as_deref(), Some("http://cap.jpg"));
+        assert_eq!(g[0].image.as_deref(), Some("https://cdn.cloudflare.steamstatic.com/steam/apps/111/header.jpg"));
     }
 
     #[test]

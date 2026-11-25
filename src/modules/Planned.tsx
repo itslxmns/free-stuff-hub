@@ -59,30 +59,36 @@ export const PLANNED: PlannedModule[] = [
   },
 ];
 
+const RISK_LABEL: Record<Risk, string> = { low: "Low ToS risk", medium: "Medium ToS risk", high: "High ToS risk" };
+
 export function PlannedPage({ m }: { m: PlannedModule }) {
   return (
-    <div className="page">
+    <div className="page narrow">
       <header className="page-head">
         <div>
-          <h1 className="title-icon">
-            <Icon name={m.icon} size={22} /> {m.name}
-          </h1>
-          <p className="muted">{m.summary}</p>
+          <h1>{m.name}</h1>
+          <p className="page-sub">{m.summary}</p>
         </div>
-        <span className={`risk risk-${m.risk}`}>{m.risk.toUpperCase()} RISK</span>
+        <span className="status-text">Not built yet</span>
       </header>
-      <div className={`notice ${m.risk === "high" ? "danger" : m.risk === "medium" ? "warn" : "safe"}`}>
-        <strong>Terms of Service warning.</strong> {m.riskText}
-      </div>
+      <section className={`panel risk-panel risk-${m.risk}`}>
+        <div className="risk-head">
+          <span className="dot" />
+          {RISK_LABEL[m.risk]}
+        </div>
+        <p>{m.riskText}</p>
+      </section>
       <section className="panel">
         <h2>Planned safeguards</h2>
-        <ul className="list">
+        <ul className="checklist">
           {m.safeguards.map((s) => (
-            <li key={s}>{s}</li>
+            <li key={s}>
+              <Icon name="check" />
+              {s}
+            </li>
           ))}
         </ul>
       </section>
-      <div className="empty">This module isn't built yet. Free games is the first module.</div>
     </div>
   );
 }
