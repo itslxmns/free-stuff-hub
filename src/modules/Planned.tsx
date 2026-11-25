@@ -30,20 +30,6 @@ export const PLANNED: PlannedModule[] = [
     ],
   },
   {
-    id: "steam",
-    name: "Steam card idling",
-    icon: "cards",
-    risk: "low",
-    summary: "Mark games as running so they drop trading cards, like Idle Master or ArchiSteamFarm.",
-    riskText:
-      "Widely used and generally tolerated, but it's still automation on your Steam account. Playtime shows up on your profile.",
-    safeguards: [
-      "Uses the local Steam client you're already signed in to",
-      "Caps how many games idle at once, rotating at random intervals",
-      "Stops when you launch a real game",
-    ],
-  },
-  {
     id: "drops",
     name: "Twitch & Kick drops",
     icon: "tv",

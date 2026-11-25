@@ -1,22 +1,27 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { api, isTauri, type Settings, type Snapshot } from "./lib/api";
+import { api, isTauri, type IdleView, type Settings, type Snapshot } from "./lib/api";
 import { Icon, type IconName } from "./lib/icons";
 import { FreeGames } from "./modules/FreeGames";
+import { SteamIdle } from "./modules/SteamIdle";
 import { PLANNED, PlannedPage } from "./modules/Planned";
 
-type Page = "free-games" | "log" | "settings" | (typeof PLANNED)[number]["id"];
+type Page = "free-games" | "steam-idle" | "log" | "settings" | (typeof PLANNED)[number]["id"];
 
 export default function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [page, setPage] = useState<Page>("free-games");
   const [error, setError] = useState<string | null>(null);
+  const [idle, setIdle] = useState<IdleView | null>(null);
 
   useEffect(() => {
     api.snapshot().then(setSnap).catch((e) => setError(String(e)));
+    api.idleState().then(setIdle).catch(() => {});
     const un = api.onSnapshot(setSnap);
+    const unIdle = api.onIdle(setIdle);
     return () => {
       un.then((f) => f());
+      unIdle.then((f) => f());
     };
   }, []);
 
@@ -42,6 +47,13 @@ export default function App() {
         <nav>
           <div className="nav-label">Modules</div>
           <NavItem icon="gamepad" label="Free games" active={page === "free-games"} onClick={() => setPage("free-games")} count={freeCount} />
+          <NavItem
+            icon="cards"
+            label="Steam card idling"
+            active={page === "steam-idle"}
+            onClick={() => setPage("steam-idle")}
+            tag={idle?.running ? "On" : undefined}
+          />
           {PLANNED.map((m) => (
             <NavItem key={m.id} icon={m.icon} label={m.name} active={page === m.id} onClick={() => setPage(m.id)} tag="Soon" />
           ))}
@@ -55,6 +67,9 @@ export default function App() {
       <main className="content">
         {!isTauri && <div className="demo-bar">Browser preview with sample data. Run <code>npm run tauri dev</code> for the real app</div>}
         {page === "free-games" && <FreeGames snap={snap} onSnap={setSnap} onError={setError} />}
+        {page === "steam-idle" && (
+          <SteamIdle settings={snap.settings} onSaveSettings={saveSettings} onError={setError} idle={idle} onIdle={setIdle} />
+        )}
         {planned && <PlannedPage m={planned} />}
         {page === "log" && <ActivityLog snap={snap} />}
         {page === "settings" && <SettingsPage s={snap.settings} onSave={saveSettings} />}

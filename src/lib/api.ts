@@ -30,6 +30,8 @@ export interface Settings {
   steam: boolean;
   steamAutoAdd: boolean;
   steamDailyCap: number;
+  idleMaxGames: number;
+  idleMulti: boolean;
   acknowledgedRisk: boolean;
 }
 
@@ -49,6 +51,27 @@ export interface Snapshot {
   claimedTotal: number;
 }
 
+export interface IdleGame {
+  appid: number;
+  title: string;
+  drops: number;
+  hours: number;
+  idling: boolean;
+  refused: boolean;
+}
+
+export interface IdleView {
+  running: boolean;
+  status: string;
+  needsLogin: boolean;
+  steamReady: boolean;
+  dllFound: boolean;
+  games: IdleGame[];
+  totalDrops: number;
+  lastRefresh: string | null;
+  nextSwitch: string | null;
+}
+
 const tauriApi = {
   snapshot: () => invoke<Snapshot>("get_snapshot"),
   checkNow: () => invoke<Snapshot>("check_now"),
@@ -57,6 +80,11 @@ const tauriApi = {
   openStoreWindow: (url: string, title?: string) => invoke<void>("open_store_window", { url, title }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),
   steamAddToAccount: (id: string) => invoke<void>("steam_add_to_account", { id }),
+  idleState: () => invoke<IdleView>("idle_state"),
+  idleStart: () => invoke<IdleView>("idle_start"),
+  idleStop: () => invoke<IdleView>("idle_stop"),
+  idleSignIn: () => invoke<void>("idle_sign_in"),
+  onIdle: (cb: (v: IdleView) => void): Promise<UnlistenFn> => listen<IdleView>("idle", (e) => cb(e.payload)),
   onSnapshot: (cb: (s: Snapshot) => void): Promise<UnlistenFn> =>
     listen<Snapshot>("snapshot", (e) => cb(e.payload)),
 };

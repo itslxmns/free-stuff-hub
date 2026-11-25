@@ -1,6 +1,13 @@
 mod free_games;
+mod idle_child;
+mod idler;
 mod state;
 mod steam;
+
+/// Entry point for the `--idle` helper process.
+pub fn idle_child_main(appid: &str, dll: &str) -> i32 {
+    idle_child::run(appid, dll)
+}
 
 use chrono::{Duration as ChronoDuration, Utc};
 use state::{Settings, Snapshot, Store};
@@ -23,6 +30,8 @@ pub(crate) struct AppState {
     pub(crate) steam_waiter: Mutex<Option<tokio::sync::oneshot::Sender<String>>>,
     /// One Steam auto-add queue at a time.
     pub(crate) steam_busy: Mutex<bool>,
+    /// Steam card idling state and helper processes.
+    pub(crate) idler: Mutex<idler::Idler>,
 }
 
 /// Hosts the in-app sign-in/claim windows may open. Anything else goes to the system browser.
@@ -287,13 +296,15 @@ pub fn run() {
                 checking: Mutex::new(false),
                 steam_waiter: Mutex::new(None),
                 steam_busy: Mutex::new(false),
+                idler: Mutex::new(idler::Idler::default()),
             });
 
             // Tray
             let open = MenuItem::with_id(app, "open", "Open dashboard", true, None::<&str>)?;
             let check = MenuItem::with_id(app, "check", "Check free games now", true, None::<&str>)?;
+            let stop_idle = MenuItem::with_id(app, "stop-idle", "Stop card idling", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &check, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &check, &stop_idle, &quit])?;
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip("Free Stuff Hub")
@@ -307,7 +318,11 @@ pub fn run() {
                             let _ = run_check(&app, "tray").await;
                         });
                     }
-                    "quit" => app.exit(0),
+                    "stop-idle" => idler::stop(app),
+                    "quit" => {
+                        idler::shutdown(app);
+                        app.exit(0)
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, ev| {
@@ -352,8 +367,17 @@ pub fn run() {
             update_settings,
             open_store_window,
             open_external,
-            steam::steam_add_to_account
+            steam::steam_add_to_account,
+            idler::idle_state,
+            idler::idle_start,
+            idler::idle_stop,
+            idler::idle_sign_in
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                idler::shutdown(app);
+            }
+        });
 }

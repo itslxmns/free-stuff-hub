@@ -1,12 +1,12 @@
 // Demo data used only when the UI runs in a plain browser (no Tauri backend),
 // e.g. `npm run dev` opened at http://localhost:1420 for UI work.
-import type { Settings, Snapshot } from "./api";
+import type { IdleView, Settings, Snapshot } from "./api";
 
 const day = 86_400_000;
 const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 let state: Snapshot = {
-  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, steam: true, steamAutoAdd: false, steamDailyCap: 10, acknowledgedRisk: true },
+  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, steam: true, steamAutoAdd: false, steamDailyCap: 10, idleMaxGames: 5, idleMulti: true, acknowledgedRisk: true },
   lastCheck: iso(-12 * 60_000),
   nextCheck: iso(6 * 3_600_000),
   claimedTotal: 1,
@@ -24,6 +24,23 @@ let state: Snapshot = {
   ],
 };
 
+let idle: IdleView = {
+  running: true,
+  status: "Building playtime on 3 games at once",
+  needsLogin: false,
+  steamReady: true,
+  dllFound: true,
+  totalDrops: 14,
+  lastRefresh: iso(-4 * 60_000),
+  nextSwitch: iso(21 * 60_000),
+  games: [
+    { appid: 413150, title: "Stardew Valley", drops: 4, hours: 1.4, idling: true, refused: false },
+    { appid: 892970, title: "Valheim", drops: 3, hours: 0.6, idling: true, refused: false },
+    { appid: 3241660, title: "R.E.P.O.", drops: 3, hours: 0.2, idling: true, refused: false },
+    { appid: 108600, title: "Project Zomboid", drops: 4, hours: 37.5, idling: false, refused: false },
+  ],
+};
+
 export const mockApi = {
   snapshot: async () => state,
   checkNow: async () => (state = { ...state, lastCheck: new Date().toISOString() }),
@@ -35,5 +52,10 @@ export const mockApi = {
   openStoreWindow: async (url: string) => void window.open(url, "_blank"),
   openExternal: async (url: string) => void window.open(url, "_blank"),
   steamAddToAccount: async () => {},
+  idleState: async () => idle,
+  idleStart: async () => (idle = { ...idle, running: true, status: "Starting" }),
+  idleStop: async () => (idle = { ...idle, running: false, status: "Stopped", nextSwitch: null, games: idle.games.map((g) => ({ ...g, idling: false, refused: false })) }),
+  idleSignIn: async () => {},
+  onIdle: async () => () => {},
   onSnapshot: async () => () => {},
 };

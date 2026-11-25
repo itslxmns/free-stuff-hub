@@ -6,7 +6,7 @@ Built with **Tauri 2** (Rust backend) and **React + TypeScript**.
 | Module | Status | ToS risk |
 | --- | --- | --- |
 | **Free games**: Epic Games Store, Steam 100% off (with Add to account), GOG giveaways, Prime Gaming reminders | Working | Low |
-| Steam trading-card idling | Planned | Low |
+| **Steam card idling**: trading-card drops, like Idle Master | Working | Low |
 | Twitch & Kick drops | Planned | Medium |
 | Discord quests | Planned | **High** |
 
@@ -44,6 +44,20 @@ your browser.
   ArchiSteamFarm have done this for years without bans. Steam itself limits accounts to about 50
   free licenses per hour, far above what this app does. The app never sees your Steam password,
   cookies or Steam Guard codes.
+
+## Steam card idling
+
+- Needs the Steam client running and signed in. The first time, sign in to Steam Community in the
+  app window so it can read your badges page. The app only reads card-drop counts and playtime.
+- To "run" a game, a hidden helper loads Steam's own `steam_api64.dll` (copied from a game you
+  already have installed) and tells Steam the game is open. No game files run.
+- Games under 2 h of playtime idle together first (5 at a time by default), then the rest go one
+  at a time. Drops are re-checked every 15 to 30 minutes at random.
+- Pauses when you start a real game or close Steam. Stop any time from the page or the tray.
+- Steam Community and the Steam client must be the same account, otherwise Steam refuses to run
+  the games. The app checks this and tells you.
+- Friends see you as in game, and the hours show on your profile. Valve has tolerated card idling
+  for many years, and it doesn't touch VAC.
 
 ## Install
 

@@ -22,6 +22,10 @@ pub struct Settings {
     pub steam_auto_add: bool,
     /// Max automatic Steam adds per 24 h.
     pub steam_daily_cap: u32,
+    /// Card idling: max games idled at once while building the first 2 h of playtime.
+    pub idle_max_games: u32,
+    /// Card idling: idle games under 2 h together first.
+    pub idle_multi: bool,
     /// User has read the ToS / account-risk notice.
     pub acknowledged_risk: bool,
 }
@@ -39,6 +43,8 @@ impl Default for Settings {
             steam: true,
             steam_auto_add: false,
             steam_daily_cap: 10,
+            idle_max_games: 5,
+            idle_multi: true,
             acknowledged_risk: false,
         }
     }
