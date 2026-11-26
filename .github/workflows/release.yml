@@ -32,6 +32,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the update so installed apps accept it (key made with `tauri signer generate`).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: Free Stuff Hub ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
@@ -39,5 +42,8 @@ jobs:
             Download **Free Stuff Hub_x.y.z_x64-setup.exe** below and run it. No admin rights needed; it adds desktop and Start menu shortcuts.
 
             Read the ToS warning in the README before using the planned Discord / Twitch modules.
+          includeUpdaterJson: true
+          # Updater artifacts (signed installer + latest.json) only in CI, so local builds need no key.
+          args: --config src-tauri/tauri.release.conf.json
           releaseDraft: false
           prerelease: false

@@ -1,12 +1,12 @@
 // Demo data used only when the UI runs in a plain browser (no Tauri backend),
 // e.g. `npm run dev` opened at http://localhost:1420 for UI work.
-import type { IdleView, Settings, Snapshot } from "./api";
+import type { IdleView, Settings, Snapshot, UpdateView } from "./api";
 
 const day = 86_400_000;
 const iso = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 let state: Snapshot = {
-  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, steam: true, steamAutoAdd: false, steamDailyCap: 10, idleMaxGames: 5, idleMulti: true, acknowledgedRisk: true },
+  settings: { checkIntervalHours: 6, notify: true, closeToTray: true, launchAtStartup: false, epic: true, gog: true, prime: true, steam: true, steamAutoAdd: false, steamDailyCap: 10, idleMaxGames: 5, idleMulti: true, autoUpdate: true, acknowledgedRisk: true },
   lastCheck: iso(-12 * 60_000),
   nextCheck: iso(6 * 3_600_000),
   claimedTotal: 1,
@@ -41,6 +41,8 @@ let idle: IdleView = {
   ],
 };
 
+let update: UpdateView = { current: "0.3.0", status: "available", version: "0.3.1", notes: null, progress: null, error: null };
+
 export const mockApi = {
   snapshot: async () => state,
   checkNow: async () => (state = { ...state, lastCheck: new Date().toISOString() }),
@@ -56,6 +58,12 @@ export const mockApi = {
   idleStart: async () => (idle = { ...idle, running: true, status: "Starting" }),
   idleStop: async () => (idle = { ...idle, running: false, status: "Stopped", nextSwitch: null, games: idle.games.map((g) => ({ ...g, idling: false, refused: false })) }),
   idleSignIn: async () => {},
+  updateState: async () => update,
+  updateCheck: async () => update,
+  updateInstall: async () => {
+    update = { ...update, status: "downloading", progress: 0.4 };
+  },
+  onUpdate: async () => () => {},
   onIdle: async () => () => {},
   onSnapshot: async () => () => {},
 };

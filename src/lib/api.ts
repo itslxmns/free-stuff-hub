@@ -32,6 +32,7 @@ export interface Settings {
   steamDailyCap: number;
   idleMaxGames: number;
   idleMulti: boolean;
+  autoUpdate: boolean;
   acknowledgedRisk: boolean;
 }
 
@@ -72,6 +73,15 @@ export interface IdleView {
   nextSwitch: string | null;
 }
 
+export interface UpdateView {
+  current: string;
+  status: "idle" | "checking" | "available" | "downloading" | "installing" | "error" | "latest";
+  version: string | null;
+  notes: string | null;
+  progress: number | null;
+  error: string | null;
+}
+
 const tauriApi = {
   snapshot: () => invoke<Snapshot>("get_snapshot"),
   checkNow: () => invoke<Snapshot>("check_now"),
@@ -84,6 +94,10 @@ const tauriApi = {
   idleStart: () => invoke<IdleView>("idle_start"),
   idleStop: () => invoke<IdleView>("idle_stop"),
   idleSignIn: () => invoke<void>("idle_sign_in"),
+  updateState: () => invoke<UpdateView>("update_state"),
+  updateCheck: () => invoke<UpdateView>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
+  onUpdate: (cb: (v: UpdateView) => void): Promise<UnlistenFn> => listen<UpdateView>("update", (e) => cb(e.payload)),
   onIdle: (cb: (v: IdleView) => void): Promise<UnlistenFn> => listen<IdleView>("idle", (e) => cb(e.payload)),
   onSnapshot: (cb: (s: Snapshot) => void): Promise<UnlistenFn> =>
     listen<Snapshot>("snapshot", (e) => cb(e.payload)),

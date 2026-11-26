@@ -26,6 +26,8 @@ pub struct Settings {
     pub idle_max_games: u32,
     /// Card idling: idle games under 2 h together first.
     pub idle_multi: bool,
+    /// Install updates by itself when the window is in the tray and nothing is idling.
+    pub auto_update: bool,
     /// User has read the ToS / account-risk notice.
     pub acknowledged_risk: bool,
 }
@@ -45,6 +47,7 @@ impl Default for Settings {
             steam_daily_cap: 10,
             idle_max_games: 5,
             idle_multi: true,
+            auto_update: true,
             acknowledged_risk: false,
         }
     }

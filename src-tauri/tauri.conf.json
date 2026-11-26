@@ -42,5 +42,16 @@
         "installMode": "currentUser"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4OEQyRkI0QkY4NTBGQkMKUldTOEQ0Vy90QytOT00weW93ME9pN2p6WHhHTEZ1c3dFeXhXbnpzdlZoSUl0MS95ZW5WZmh0WmMK",
+      "endpoints": [
+        "https://github.com/itslxmns/free-stuff-hub/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

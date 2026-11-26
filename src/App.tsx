@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { api, isTauri, type IdleView, type Settings, type Snapshot } from "./lib/api";
+import { api, isTauri, type IdleView, type Settings, type UpdateView, type Snapshot } from "./lib/api";
 import { Icon, type IconName } from "./lib/icons";
 import { FreeGames } from "./modules/FreeGames";
 import { SteamIdle } from "./modules/SteamIdle";
@@ -13,15 +13,19 @@ export default function App() {
   const [page, setPage] = useState<Page>("free-games");
   const [error, setError] = useState<string | null>(null);
   const [idle, setIdle] = useState<IdleView | null>(null);
+  const [update, setUpdate] = useState<UpdateView | null>(null);
 
   useEffect(() => {
     api.snapshot().then(setSnap).catch((e) => setError(String(e)));
     api.idleState().then(setIdle).catch(() => {});
+    api.updateState().then(setUpdate).catch(() => {});
+    const unUpdate = api.onUpdate(setUpdate);
     const un = api.onSnapshot(setSnap);
     const unIdle = api.onIdle(setIdle);
     return () => {
       un.then((f) => f());
       unIdle.then((f) => f());
+      unUpdate.then((f) => f());
     };
   }, []);
 
@@ -66,13 +70,14 @@ export default function App() {
 
       <main className="content">
         {!isTauri && <div className="demo-bar">Browser preview with sample data. Run <code>npm run tauri dev</code> for the real app</div>}
+        {update && <UpdateBanner u={update} onError={setError} />}
         {page === "free-games" && <FreeGames snap={snap} onSnap={setSnap} onError={setError} />}
         {page === "steam-idle" && (
           <SteamIdle settings={snap.settings} onSaveSettings={saveSettings} onError={setError} idle={idle} onIdle={setIdle} />
         )}
         {planned && <PlannedPage m={planned} />}
         {page === "log" && <ActivityLog snap={snap} />}
-        {page === "settings" && <SettingsPage s={snap.settings} onSave={saveSettings} />}
+        {page === "settings" && <SettingsPage s={snap.settings} onSave={saveSettings} update={update} onUpdate={setUpdate} onError={setError} />}
       </main>
 
       {!snap.settings.acknowledgedRisk && (
@@ -149,7 +154,37 @@ function ActivityLog({ snap }: { snap: Snapshot }) {
   );
 }
 
-function SettingsPage({ s, onSave }: { s: Settings; onSave: (s: Settings) => void }) {
+function UpdateBanner({ u, onError }: { u: UpdateView; onError: (m: string) => void }) {
+  if (!["available", "downloading", "installing"].includes(u.status) || !u.version) return null;
+  const pct = u.progress != null ? Math.round(u.progress * 100) : null;
+  return (
+    <div className="update-bar" role="status">
+      <Icon name="refresh" />
+      {u.status === "available" && <span>Version {u.version} is available</span>}
+      {u.status === "downloading" && <span>Downloading {u.version}{pct != null ? ` · ${pct}%` : ""}</span>}
+      {u.status === "installing" && <span>Installing {u.version}, the app will restart</span>}
+      {u.status === "available" && (
+        <button className="btn secondary small" onClick={() => api.updateInstall().catch((e) => onError(String(e)))}>
+          Install and restart
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SettingsPage({
+  s,
+  onSave,
+  update,
+  onUpdate,
+  onError,
+}: {
+  s: Settings;
+  onSave: (s: Settings) => void;
+  update: UpdateView | null;
+  onUpdate: (u: UpdateView) => void;
+  onError: (m: string) => void;
+}) {
   const set = (patch: Partial<Settings>) => onSave({ ...s, ...patch });
   return (
     <div className="page">
@@ -200,6 +235,27 @@ function SettingsPage({ s, onSave }: { s: Settings; onSave: (s: Settings) => voi
         <Toggle label="Close button hides to tray" v={s.closeToTray} on={(closeToTray) => set({ closeToTray })} />
         <Toggle label="Start with Windows, hidden in the tray" v={s.launchAtStartup} on={(launchAtStartup) => set({ launchAtStartup })} />
       </section>
+      <section className="panel form">
+        <h2>Updates</h2>
+        <p className="form-note">
+          Updates come from GitHub Releases and are checked for a valid signature before they install. Automatic
+          installs only happen while the window is in the tray and card idling is off.
+        </p>
+        <Toggle label="Install updates automatically" v={s.autoUpdate} on={(autoUpdate) => set({ autoUpdate })} />
+        <div className="row static">
+          <span>
+            Version <span className="mono">{update?.current ?? "unknown"}</span>
+            <span className="update-note">{updateNote(update)}</span>
+          </span>
+          <button
+            className="btn secondary small"
+            disabled={update?.status === "checking" || update?.status === "downloading"}
+            onClick={() => api.updateCheck().then(onUpdate).catch((e) => onError(String(e)))}
+          >
+            Check for updates
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -211,4 +267,24 @@ function Toggle({ label, v, on }: { label: string; v: boolean; on: (v: boolean) 
       <input type="checkbox" className="switch" checked={v} onChange={(e) => on(e.target.checked)} />
     </label>
   );
+}
+
+function updateNote(u: UpdateView | null): string {
+  if (!u) return "";
+  switch (u.status) {
+    case "checking":
+      return " · checking";
+    case "latest":
+      return " · up to date";
+    case "available":
+      return ` · ${u.version} available`;
+    case "downloading":
+      return ` · downloading ${u.version}`;
+    case "installing":
+      return " · installing";
+    case "error":
+      return " · couldn't check for updates";
+    default:
+      return "";
+  }
 }

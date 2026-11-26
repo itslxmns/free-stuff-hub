@@ -72,6 +72,16 @@ The installer needs no admin rights. It adds Start menu and
 desktop shortcuts. In **Settings** you can turn on **Start with Windows**, which starts the app
 hidden in the tray when you log in.
 
+## Updates
+
+The app checks GitHub Releases about 20 seconds after start and then roughly every 6 hours. A new
+version shows a banner with **Install and restart**. With **Install updates automatically** on
+(Settings, default), it installs by itself only while the window is in the tray and card idling
+is off. Updates install only if their signature matches the public key built into the app.
+
+Maintainers: release builds are signed in GitHub Actions with the `TAURI_SIGNING_PRIVATE_KEY`
+repository secret (made with `npx tauri signer generate`). Local builds don't need it.
+
 ## Development
 
 Requirements: Node 20+, Rust (stable, MSVC), WebView2 (included with Windows 11).

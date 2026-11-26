@@ -3,6 +3,7 @@ mod idle_child;
 mod idler;
 mod state;
 mod steam;
+mod updater;
 
 /// Entry point for the `--idle` helper process.
 pub fn idle_child_main(appid: &str, dll: &str) -> i32 {
@@ -32,6 +33,8 @@ pub(crate) struct AppState {
     pub(crate) steam_busy: Mutex<bool>,
     /// Steam card idling state and helper processes.
     pub(crate) idler: Mutex<idler::Idler>,
+    /// Auto-update state.
+    pub(crate) updater: Mutex<updater::Updater>,
 }
 
 /// Hosts the in-app sign-in/claim windows may open. Anything else goes to the system browser.
@@ -286,6 +289,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -297,14 +301,16 @@ pub fn run() {
                 steam_waiter: Mutex::new(None),
                 steam_busy: Mutex::new(false),
                 idler: Mutex::new(idler::Idler::default()),
+                updater: Mutex::new(updater::Updater::default()),
             });
 
             // Tray
             let open = MenuItem::with_id(app, "open", "Open dashboard", true, None::<&str>)?;
             let check = MenuItem::with_id(app, "check", "Check free games now", true, None::<&str>)?;
             let stop_idle = MenuItem::with_id(app, "stop-idle", "Stop card idling", true, None::<&str>)?;
+            let upd = MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &check, &stop_idle, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &check, &stop_idle, &upd, &quit])?;
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip("Free Stuff Hub")
@@ -319,6 +325,13 @@ pub fn run() {
                         });
                     }
                     "stop-idle" => idler::stop(app),
+                    "update" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            show_main(&app);
+                            let _ = updater::check(&app).await;
+                        });
+                    }
                     "quit" => {
                         idler::shutdown(app);
                         app.exit(0)
@@ -347,6 +360,7 @@ pub fn run() {
             }
 
             spawn_poller(app.handle().clone(), wake);
+            updater::spawn_checker(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -371,7 +385,10 @@ pub fn run() {
             idler::idle_state,
             idler::idle_start,
             idler::idle_stop,
-            idler::idle_sign_in
+            idler::idle_sign_in,
+            updater::update_state,
+            updater::update_check,
+            updater::update_install
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
